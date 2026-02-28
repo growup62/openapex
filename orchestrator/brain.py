@@ -193,7 +193,8 @@ class Brain:
             "self_reflect",
             "recall_knowledge",
             "delegate_task",
-            "run_python"
+            "run_python",
+            "send_message"
         ]
         
         for name in core_tools:

@@ -3,6 +3,7 @@ import json
 import logging
 import re
 import os
+from typing import Dict, Any
 from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)

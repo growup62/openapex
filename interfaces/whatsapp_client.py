@@ -35,7 +35,8 @@ class WhatsAppHandler(BaseHTTPRequestHandler):
         """Handle incoming text messages."""
         try:
             data = json.loads(body)
-            sender = data.get('sender', 'unknown')
+            sender_raw = data.get('sender', 'unknown')
+            sender = sender_raw.split('@')[0] if '@' in sender_raw else sender_raw
             message = data.get('message', '')
             
             logger.info(f"[WhatsApp] Text from {sender}: {message[:50]}...")
@@ -50,7 +51,8 @@ class WhatsAppHandler(BaseHTTPRequestHandler):
         """Handle incoming voice messages: STT -> Brain -> TTS."""
         try:
             data = json.loads(body)
-            sender = data.get('sender', 'unknown')
+            sender_raw = data.get('sender', 'unknown')
+            sender = sender_raw.split('@')[0] if '@' in sender_raw else sender_raw
             audio_path = data.get('audio_path', '')
             
             logger.info(f"[WhatsApp] Voice from {sender}: {audio_path}")
@@ -72,7 +74,7 @@ class WhatsAppHandler(BaseHTTPRequestHandler):
 
             # 3. Text-to-Speech reply
             tts_text = response[:1000] if len(response) > 1000 else response
-            tts_result = engine.text_to_speech(tts_text, filename=f"wa_reply_{sender.replace('@', '_')}.mp3")
+            tts_result = engine.text_to_speech(tts_text, filename=f"wa_reply_{sender}.mp3")
 
             reply_audio = tts_result.get("file_path") if tts_result.get("status") == "success" else None
 

@@ -14,164 +14,133 @@ logger = logging.getLogger(__name__)
 
 class LLMRouter:
     def __init__(self):
+        load_dotenv(override=True)
         self.openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
         self.groq_api_key = os.getenv("GROQ_API_KEY")
+        self.gemini_api_key = os.getenv("GEMINI_API_KEY")
+        self.hf_api_token = os.getenv("HF_API_TOKEN")
+        self.nvidia_api_key = os.getenv("NVIDIA_API_KEY")
+        self.ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
         
-        self.default_reasoning_model = os.getenv("DEFAULT_REASONING_MODEL", "anthropic/claude-3.5-sonnet")
-        self.default_tooling_model = os.getenv("DEFAULT_TOOLING_MODEL", "meta-llama/llama-3-8b-instruct")
+        self.default_reasoning_model = os.getenv("DEFAULT_REASONING_MODEL", "gemini/gemini-2.0-flash-lite-preview-02-05")
+        self.default_tooling_model = os.getenv("DEFAULT_TOOLING_MODEL", "gemini/gemini-2.0-flash-lite-preview-02-05")
 
-        self.or_headers = {
-            "Authorization": f"Bearer {self.openrouter_api_key}",
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://github.com/rahfi/openApex", # Optional, for OpenRouter rankings
-            "X-Title": "openApex", # Optional, for OpenRouter rankings
-        }
+    def _call_openai_style(self, url: str, headers: Dict[str, str], payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Generic OpenAI-compatible API caller."""
+        try:
+            response = requests.post(url=url, headers=headers, json=payload, timeout=60)
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            logger.error(f"OpenAI-style call failed to {url}: {e}")
+            if hasattr(e, 'response') and e.response is not None:
+                return {"error": str(e), "status_code": e.response.status_code, "body": e.response.text}
+            return {"error": str(e)}
+
+    def _call_gemini_native(self, model: str, messages: list[Dict[str, str]], tools: Optional[list] = None) -> Dict[str, Any]:
+        """Native Google Gemini API caller (generateContent)."""
+        # Convert OpenAI messages to Gemini contents
+        contents = []
+        for msg in messages:
+            role = "user" if msg["role"] == "user" else "model"
+            contents.append({"role": role, "parts": [{"text": msg["content"]}]})
         
-        self.groq_headers = {
-            "Authorization": f"Bearer {self.groq_api_key}",
-            "Content-Type": "application/json",
-        }
-
-        # Mapping table: Groq model names -> OpenRouter equivalents
-        self.groq_to_openrouter_map = {
-            "llama-3.3-70b-versatile": "meta-llama/llama-3.3-70b-instruct",
-            "llama-3.1-70b-versatile": "meta-llama/llama-3.1-70b-instruct",
-            "llama-3.1-8b-instant": "meta-llama/llama-3.1-8b-instruct",
-            "llama3-70b-8192": "meta-llama/llama-3-70b-instruct",
-            "llama3-8b-8192": "meta-llama/llama-3-8b-instruct",
-            "gemma2-9b-it": "google/gemma-2-9b-it",
-            "mixtral-8x7b-32768": "mistralai/mixtral-8x7b-instruct",
-        }
+        # Clean model name: e.g. "gemini/gemini-1.5-flash" -> "gemini-1.5-flash"
+        api_model = model.split("/")[-1]
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{api_model}:generateContent?key={self.gemini_api_key}"
+        
+        payload = {"contents": contents}
+        try:
+            response = requests.post(url=url, json=payload, timeout=60)
+            response.raise_for_status()
+            data = response.json()
+            
+            # Extract text to match OpenAI response format
+            if "candidates" in data and len(data["candidates"]) > 0:
+                text = data["candidates"][0]["content"]["parts"][0]["text"]
+                return {
+                    "choices": [{
+                        "message": {"role": "assistant", "content": text}
+                    }]
+                }
+            return {"error": f"No content returned from Gemini: {data}"}
+        except Exception as e:
+            logger.error(f"Native Gemini call failed for {api_model}: {e}")
+            if hasattr(e, 'response') and e.response is not None:
+                return {"error": str(e), "body": e.response.text}
+            return {"error": str(e)}
 
     def generate_response(self, 
                           messages: list[Dict[str, str]], 
                           task_type: str = "reasoning", 
                           tools: Optional[list[Dict[str, Any]]] = None) -> Dict[str, Any]:
-        """
-        Routes the request to the appropriate model based on task_type.
-        """
+        """Routes and falls back through providers: gemini -> groq -> hf -> or -> ollama."""
+        primary_model = self.default_reasoning_model if task_type == "reasoning" else self.default_tooling_model
         if task_type == "swarm_worker":
-            model = "groq/llama-3.1-8b-instant"
-        else:
-            model = self.default_reasoning_model if task_type == "reasoning" else self.default_tooling_model
-            
-        logger.info(f"Routing task '{task_type}' to model: {model}")
-        
-        is_groq = model.startswith("groq/")
-        # Remove 'groq/' prefix if calling native Groq API, else keep as is for OpenRouter
-        api_model = model.replace("groq/", "") if is_groq else model
-        
-        payload = {
-            "model": api_model,
-            "messages": messages
-        }
-        if tools:
-            payload["tools"] = tools
+             primary_model = "groq/llama-3.1-8b-instant"
 
-        try:
-            target_url = "https://api.groq.com/openai/v1/chat/completions" if is_groq else "https://openrouter.ai/api/v1/chat/completions"
-            headers = self.groq_headers if is_groq else self.or_headers
-            
-            response = requests.post(
-                url=target_url,
-                headers=headers,
-                data=json.dumps(payload)
-            )
-            response.raise_for_status()
-            data = response.json()
-            return data
-            
-        except requests.exceptions.HTTPError as e:
-            # Handle Groq's known issue where it outputs XML-like function calls instead of native JSON calls
-            if hasattr(e, 'response') and e.response is not None and e.response.status_code == 400:
-                try:
-                    error_data = e.response.json()
-                    error_obj = error_data.get("error", {})
-                    if error_obj.get("code") == "tool_use_failed" and "failed_generation" in error_obj:
-                        failed_gen = error_obj["failed_generation"]
-                        # Example: <function=web_search>{"query": "cuaca Jakarta hari ini"}</function>
-                        import re
-                        match = re.search(r'<function=([^>]+)>(.*?)</function>', failed_gen, re.DOTALL)
-                        if match:
-                            func_name = match.group(1).strip()
-                            func_args = match.group(2).strip()
-                            logger.info(f"Intercepted Groq XML tool call: {func_name}")
-                            
-                            # Simulate a successful OpenAI-compatible tool call response
-                            import uuid
-                            return {
-                                "choices": [{
-                                    "message": {
-                                        "role": "assistant",
-                                        "content": None,
-                                        "tool_calls": [{
-                                            "id": f"call_{str(uuid.uuid4())[:8]}",
-                                            "type": "function",
-                                            "function": {
-                                                "name": func_name,
-                                                "arguments": func_args
-                                            }
-                                        }]
-                                    }
-                                }]
-                            }
-                except Exception as parse_error:
-                    logger.error(f"Failed to parse Groq failed_generation fallback: {parse_error}")
+        # List of provider attempts (Priority order)
+        providers = [
+            {"name": "primary", "model": primary_model},
+            {"name": "gemini_flash_lite", "model": "gemini/gemini-2.0-flash-lite-preview-02-05"},
+            {"name": "gemini_flash_1_5", "model": "gemini/gemini-1.5-flash"},
+            {"name": "nvidia_nim", "model": "nv/meta/llama-3.1-70b-instruct"},
+            {"name": "groq_llama_8b", "model": "groq/llama-3.1-8b-instant"},
+            {"name": "groq_llama_70b", "model": "groq/llama-3.3-70b-versatile"},
+            {"name": "hf_llama_8b", "model": "hf/meta-llama/Llama-3.1-8B-Instruct"},
+            {"name": "ollama_fallback", "model": "ollama/llama3"},
+        ]
 
-            if is_groq:
-                logger.warning(f"Groq API failed with error {e}. Attempting OpenRouter Fallback...")
-                # Translate groq model name to OpenRouter equivalent
-                or_model = self.groq_to_openrouter_map.get(api_model, f"meta-llama/llama-3.3-70b-instruct")
-                print(f"[System]: Groq API error. Switching to OpenRouter with model: {or_model}...")
-                try:
-                    # Retry with OpenRouter using the translated model name
-                    fallback_payload = payload.copy()
-                    fallback_payload["model"] = or_model
-                    
-                    response = requests.post(
-                        url="https://openrouter.ai/api/v1/chat/completions",
-                        headers=self.or_headers,
-                        data=json.dumps(fallback_payload)
-                    )
-                    response.raise_for_status()
-                    return response.json()
-                except Exception as fallback_e:
-                     logger.error(f"OpenRouter Fallback also failed: {fallback_e}")
-                     if hasattr(fallback_e, 'response') and fallback_e.response is not None:
-                         logger.error(f"OpenRouter error body: {fallback_e.response.text}")
-                     return {"error": str(fallback_e)}
-
-            logger.error(f"Error calling LLM API: {e}")
-            if hasattr(e, 'response') and e.response is not None:
-                logger.error(f"Response body: {e.response.text}")
-            return {"error": str(e)}
+        for p in providers:
+            model = p["model"]
+            if not model: continue
             
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Error calling LLM API: {e}")
-            if hasattr(e, 'response') and e.response is not None:
-                logger.error(f"Response body: {e.response.text}")
-            return {"error": str(e)}
+            logger.info(f"Attempting provider '{p['name']}' with model: {model}")
+            
+            # Skip if keys are missing
+            if "gemini/" in model and not self.gemini_api_key: continue
+            if "groq/" in model and not self.groq_api_key: continue
+            if "hf/" in model and not self.hf_api_token: continue
+            
+            result = None
+            if model.startswith("gemini/"):
+                # Try native first if it's Gemini
+                result = self._call_gemini_native(model, messages, tools)
+            elif model.startswith("groq/"):
+                url = "https://api.groq.com/openai/v1/chat/completions"
+                headers = {"Authorization": f"Bearer {self.groq_api_key}", "Content-Type": "application/json"}
+                result = self._call_openai_style(url, headers, {"model": model.replace("groq/", ""), "messages": messages, "tools": tools} if tools else {"model": model.replace("groq/", ""), "messages": messages})
+            elif model.startswith("nv/"):
+                url = "https://integrate.api.nvidia.com/v1/chat/completions"
+                headers = {"Authorization": f"Bearer {self.nvidia_api_key}", "Content-Type": "application/json"}
+                result = self._call_openai_style(url, headers, {"model": model.replace("nv/", ""), "messages": messages, "tools": tools} if tools else {"model": model.replace("nv/", ""), "messages": messages})
+            elif model.startswith("hf/"):
+                url = "https://router.huggingface.co/v1/chat/completions"
+                headers = {"Authorization": f"Bearer {self.hf_api_token}", "Content-Type": "application/json"}
+                result = self._call_openai_style(url, headers, {"model": model.replace("hf/", ""), "messages": messages})
+            elif model.startswith("ollama/"):
+                url = f"{self.ollama_base_url}/v1/chat/completions"
+                result = self._call_openai_style(url, {"Content-Type": "application/json"}, {"model": model.replace("ollama/", ""), "messages": messages})
+            else: # Default to OpenRouter
+                url = "https://openrouter.ai/api/v1/chat/completions"
+                headers = {"Authorization": f"Bearer {self.openrouter_api_key}", "Content-Type": "application/json", "X-Title": "openApex"}
+                result = self._call_openai_style(url, headers, {"model": model, "messages": messages, "tools": tools} if tools else {"model": model, "messages": messages})
 
-    # Helper method specifically to force JSON object returns if needed by the reasoning engine
+            if result and "error" not in result:
+                logger.info(f"Successfully got response from provider: {p['name']}")
+                return result
+            
+            logger.warning(f"Provider '{p['name']}' failed. Error: {result.get('error') if result else 'Unknown'}")
+            if result and "body" in result:
+                logger.debug(f"Response body: {result['body']}")
+
+        return {"error": "All providers failed. Please check your API keys and internet connection."}
+
     def generate_json_response(self, messages: list[Dict[str, str]], model: Optional[str] = None):
-         _model = model or self.default_reasoning_model
-         payload = {
-            "model": _model,
-            "messages": messages,
-            "response_format": {"type": "json_object"}
-         }
-         
-         try:
-            response = requests.post(
-                url="https://openrouter.ai/api/v1/chat/completions",
-                headers=self.headers,
-                data=json.dumps(payload)
-            )
-            response.raise_for_status()
-            return response.json()
-         except Exception as e:
-             logger.error(f"Error in JSON response generation: {e}")
-             return {"error": str(e)}
+         """Force JSON output (Ollama/Groq/OR support this via response_format)."""
+         # Simplified for multi-provider: just add a system prompt or use generate_response
+         messages.append({"role": "system", "content": "You MUST return a valid JSON object."})
+         return self.generate_response(messages)
 
 if __name__ == "__main__":
     # Simple test execution

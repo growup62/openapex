@@ -28,7 +28,9 @@ class PythonREPLTool:
             with contextlib.redirect_stdout(stdout_capture):
                 # Using exec() to run the dynamic code block
                 # Setting globals/locals to isolated dicts to prevent touching the main app space
-                exec_globals = {}
+                exec_globals = {
+                    "input": lambda prompt="": f"[Mocked Input: This REPL is non-interactive. Cannot use input('{prompt}')]"
+                }
                 exec(code, exec_globals)
                 
             output = stdout_capture.getvalue()
@@ -51,7 +53,7 @@ PYTHON_REPL_SCHEMA = {
     "type": "function",
     "function": {
         "name": "run_python",
-        "description": "Execute a python code snippet in a local REPL environment and get the console output. Use this to do math, parsing, or testing logic. ALWAYS print() your final variables so you can see them in the output.",
+        "description": "Execute a python code snippet in a local REPL environment. Use this for math, parsing, or logic tests. IMPORTANT: This environment is non-interactive. DO NOT use input() or any blocking calls. ALWAYS print() your results.",
         "parameters": {
             "type": "object",
             "properties": {

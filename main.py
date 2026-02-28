@@ -117,6 +117,11 @@ def main():
             
             print("openApex> Finished current task cycle.")
 
+        except EOFError:
+            print("[System]: Non-interactive environment detected. Switching to passive mode.")
+            print("[System]: openApex will continue to run interfaces and autonomous cycles.")
+            while True:
+                time.sleep(10)
         except KeyboardInterrupt:
             print("\nExiting openApex...")
             if autonomy:
