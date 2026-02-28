@@ -109,6 +109,36 @@ class PhysicalControlTool:
         except Exception as e:
             return {"error": str(e)}
 
+    @staticmethod
+    def whatsapp_initiate_call(contact_name: str) -> Dict[str, Any]:
+        """
+        Initiates a WhatsApp voice call by searching for a contact and clicking the call icon.
+        Requires WhatsApp Web to be open and the search bar to be accessible.
+        """
+        if not PYAUTOGUI_AVAILABLE:
+            return {"error": "pyautogui is not installed."}
+        try:
+            # Focus on browser
+            pyautogui.hotkey('alt', 'tab') 
+            time.sleep(1)
+            pyautogui.press('esc') 
+            time.sleep(0.5)
+            # Click search (rough estimate top left)
+            pyautogui.click(200, 150) 
+            time.sleep(0.5)
+            pyautogui.write(contact_name, interval=0.1)
+            time.sleep(1)
+            pyautogui.press('enter')
+            time.sleep(2)
+            
+            return {
+                "success": True, 
+                "message": f"Navigated to {contact_name} chat. If call icon is visible, I can attempt to click it if given coordinates.",
+                "next_step": "TAKE_SCREENSHOT"
+            }
+        except Exception as e:
+            return {"error": str(e)}
+
 # Reusable Schemas for Brain
 PHYSICAL_MOVE_MOUSE_SCHEMA = {
     "type": "function",
@@ -196,6 +226,21 @@ PHYSICAL_OPEN_CHROME_SCHEMA = {
             "properties": {
                 "url": {"type": "string", "description": "The URL to open."}
             }
+        }
+    }
+}
+
+PHYSICAL_WHATSAPP_CALL_SCHEMA = {
+    "type": "function",
+    "function": {
+        "name": "physical_whatsapp_call",
+        "description": "Attempts to initiate a WhatsApp voice call to a specific contact using GUI automation.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "contact_name": {"type": "string", "description": "The name of the contact as it appears in WhatsApp."}
+            },
+            "required": ["contact_name"]
         }
     }
 }

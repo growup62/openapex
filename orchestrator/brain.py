@@ -64,7 +64,14 @@ from tools.physical_control import (
     PHYSICAL_TYPE_KEYBOARD_SCHEMA,
     PHYSICAL_PRESS_KEY_SCHEMA,
     PHYSICAL_HOTKEY_SCHEMA,
-    PHYSICAL_OPEN_CHROME_SCHEMA
+    PHYSICAL_OPEN_CHROME_SCHEMA,
+    PHYSICAL_WHATSAPP_CALL_SCHEMA
+)
+from tools.whatsapp_operator import (
+    WhatsAppOperator,
+    WHATSAPP_SHOW_QR_SCHEMA,
+    WHATSAPP_CHECK_MESSAGES_SCHEMA,
+    WHATSAPP_READ_CHAT_SCHEMA
 )
 from memory.context_window import ContextWindow
 from memory.vector_store import VectorStore
@@ -119,7 +126,11 @@ class Brain:
         "physical_type_keyboard": PHYSICAL_TYPE_KEYBOARD_SCHEMA,
         "physical_press_key": PHYSICAL_PRESS_KEY_SCHEMA,
         "physical_hotkey": PHYSICAL_HOTKEY_SCHEMA,
-        "physical_open_chrome": PHYSICAL_OPEN_CHROME_SCHEMA
+        "physical_open_chrome": PHYSICAL_OPEN_CHROME_SCHEMA,
+        "physical_whatsapp_call": PHYSICAL_WHATSAPP_CALL_SCHEMA,
+        "whatsapp_show_qr": WHATSAPP_SHOW_QR_SCHEMA,
+        "whatsapp_check_messages": WHATSAPP_CHECK_MESSAGES_SCHEMA,
+        "whatsapp_read_chat": WHATSAPP_READ_CHAT_SCHEMA
     }
     
     def __init__(self):
@@ -366,6 +377,22 @@ class Brain:
             if not job_id:
                 return json.dumps({"error": "Missing 'job_id'"})
             return json.dumps(CronSchedulerTool.remove_job(job_id))
+
+        # ===== WhatsApp Operator Tools =====
+        elif tool_name == "whatsapp_show_qr":
+            return json.dumps(WhatsAppOperator.show_qr())
+        elif tool_name == "whatsapp_check_messages":
+            return json.dumps(WhatsAppOperator.check_new_messages())
+        elif tool_name == "whatsapp_read_chat":
+            contact = arguments.get("contact_name")
+            if not contact:
+                return json.dumps({"error": "Missing 'contact_name'"})
+            return json.dumps(WhatsAppOperator.read_chat(contact))
+        elif tool_name == "physical_whatsapp_call":
+            contact = arguments.get("contact_name")
+            if not contact:
+                return json.dumps({"error": "Missing 'contact_name'"})
+            return json.dumps(PhysicalControlTool.whatsapp_initiate_call(contact))
 
         elif tool_name == "send_message":
             platform = arguments.get("platform", "telegram")

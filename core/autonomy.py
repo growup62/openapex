@@ -27,6 +27,7 @@ class AutonomyEngine:
     MODE_MONITORING = "monitoring"
     MODE_CREATING = "creating"
     MODE_PREDICTIVE = "predictive"
+    MODE_WHATSAPP_OPERATOR = "whatsapp_operator"
 
     def __init__(self, brain_instance):
         self.brain = brain_instance
@@ -99,6 +100,8 @@ class AutonomyEngine:
                     self._do_creating()
                 elif action == self.MODE_PREDICTIVE:
                     self._do_predictive()
+                elif action == self.MODE_WHATSAPP_OPERATOR:
+                    self._do_whatsapp_operator()
                 else:
                     self._do_idle()
                 
@@ -128,6 +131,7 @@ class AutonomyEngine:
             self.MODE_MONITORING: 15,
             self.MODE_CREATING: 15,
             self.MODE_PREDICTIVE: 20,
+            self.MODE_WHATSAPP_OPERATOR: 25,
             self.MODE_IDLE: 5,
         }
         
@@ -233,6 +237,20 @@ class AutonomyEngine:
             )
         except Exception as e:
             logger.error(f"[Autonomy] Predictive analysis failed: {e}")
+
+    def _do_whatsapp_operator(self):
+        """Autonomous WhatsApp Operator: Check messages and reply."""
+        self.current_mode = self.MODE_WHATSAPP_OPERATOR
+        logger.info("[Autonomy] Checking WhatsApp for new messages...")
+        
+        try:
+            self.brain.solve(
+                "Gunakan whatsapp_check_messages untuk melihat jika ada pesan masuk di WhatsApp. "
+                "Jika ada, gunakan whatsapp_read_chat untuk membaca pesannya, "
+                "lalu berikan balasan cerdas yang membantu menggunakan alat send_message (platform='whatsapp')."
+            )
+        except Exception as e:
+            logger.error(f"[Autonomy] WhatsApp operator failed: {e}")
 
     def _do_idle(self):
         """Idle: light self-reflection."""
