@@ -73,6 +73,7 @@ from tools.whatsapp_operator import (
     WHATSAPP_CHECK_MESSAGES_SCHEMA,
     WHATSAPP_READ_CHAT_SCHEMA
 )
+from tools.search_optimizer import SearchOptimizerTool, SEARCH_OPTIMIZER_SCHEMA
 from memory.context_window import ContextWindow
 from memory.vector_store import VectorStore
 from core.consciousness import Consciousness
@@ -130,7 +131,8 @@ class Brain:
         "physical_whatsapp_call": PHYSICAL_WHATSAPP_CALL_SCHEMA,
         "whatsapp_show_qr": WHATSAPP_SHOW_QR_SCHEMA,
         "whatsapp_check_messages": WHATSAPP_CHECK_MESSAGES_SCHEMA,
-        "whatsapp_read_chat": WHATSAPP_READ_CHAT_SCHEMA
+        "whatsapp_read_chat": WHATSAPP_READ_CHAT_SCHEMA,
+        "read_optimized_url": SEARCH_OPTIMIZER_SCHEMA
     }
     
     def __init__(self):
@@ -277,6 +279,13 @@ class Brain:
             if not url:
                 return json.dumps({"error": "Missing 'url' argument"})
             return json.dumps(self.self_learner.study_documentation(url))
+
+        elif tool_name == "read_optimized_url":
+            url = arguments.get("url")
+            max_chars = arguments.get("max_chars", 8000)
+            if not url:
+                return json.dumps({"error": "Missing 'url' argument"})
+            return json.dumps(SearchOptimizerTool.read_optimized_url(url, max_chars))
 
         # ===== Swarm Manager Tools =====
         elif tool_name == "delegate_task":

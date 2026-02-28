@@ -1,10 +1,14 @@
 import logging
 import requests
 import re
-from typing import Dict, Any, Optional
+import json
+import os
+from typing import Dict, Any, Optional, List
 from memory.vector_store import VectorStore
 
 logger = logging.getLogger(__name__)
+
+LESSONS_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "memory", "long_term_lessons.json")
 
 class SelfLearnerTool:
     """
@@ -48,29 +52,36 @@ class SelfLearnerTool:
     def recall_similar(self, query: str, n_results: int = 3) -> Dict[str, Any]:
         """
         Before starting a new task, search memory for similar past experiences.
-        Returns relevant past solutions the AI can learn from.
+        Also retrieves global long-term technical lessons.
         """
         logger.info(f"Recalling knowledge for: {query[:50]}...")
 
+        # 1. Load Long-term lessons (The "ClawHub" style global memory)
+        long_term_lessons = []
+        if os.path.exists(LESSONS_FILE):
+            try:
+                with open(LESSONS_FILE, 'r') as f:
+                    data = json.load(f)
+                    long_term_lessons = data.get("lessons", [])
+            except Exception as e:
+                logger.error(f"Failed to load long-term lessons: {e}")
+
+        # 2. Search Vector Memory
         results = self.memory.search_similar_tasks(query, top_k=n_results)
 
-        if not results:
-            return {
-                "status": "no_memories",
-                "message": "No relevant past experiences found in memory."
-            }
-
         memories = []
-        for item in results:
-            memories.append({
-                "memory": item.get("content", "")[:500],
-                "metadata": item.get("metadata", {})
-            })
+        if results:
+            for item in results:
+                memories.append({
+                    "memory": item.get("content", "")[:1000],
+                    "metadata": item.get("metadata", {})
+                })
 
-        logger.info(f"Recalled {len(memories)} relevant memories.")
+        logger.info(f"Recalled {len(memories)} relevant memories and {len(long_term_lessons)} global lessons.")
         return {
             "status": "success",
-            "relevant_memories": memories
+            "relevant_memories": memories,
+            "global_technical_lessons": long_term_lessons
         }
 
     def study_documentation(self, url: str) -> Dict[str, Any]:

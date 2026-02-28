@@ -28,6 +28,7 @@ class AutonomyEngine:
     MODE_CREATING = "creating"
     MODE_PREDICTIVE = "predictive"
     MODE_WHATSAPP_OPERATOR = "whatsapp_operator"
+    MODE_DAILY_BRIEFING = "daily_briefing"
 
     def __init__(self, brain_instance):
         self.brain = brain_instance
@@ -102,6 +103,8 @@ class AutonomyEngine:
                     self._do_predictive()
                 elif action == self.MODE_WHATSAPP_OPERATOR:
                     self._do_whatsapp_operator()
+                elif action == self.MODE_DAILY_BRIEFING:
+                    self._do_daily_briefing()
                 else:
                     self._do_idle()
                 
@@ -132,6 +135,7 @@ class AutonomyEngine:
             self.MODE_CREATING: 15,
             self.MODE_PREDICTIVE: 20,
             self.MODE_WHATSAPP_OPERATOR: 25,
+            self.MODE_DAILY_BRIEFING: 15,
             self.MODE_IDLE: 5,
         }
         
@@ -251,6 +255,23 @@ class AutonomyEngine:
             )
         except Exception as e:
             logger.error(f"[Autonomy] WhatsApp operator failed: {e}")
+
+    def _do_daily_briefing(self):
+        """Autonomous Daily Briefing: Summarize tech news and system health."""
+        self.current_mode = self.MODE_DAILY_BRIEFING
+        logger.info("[Autonomy] Preparing daily briefing...")
+        
+        try:
+            chat_id = os.getenv("TELEGRAM_CHAT_ID")
+            self.brain.solve(
+                "Tugas Laporan Harian: "
+                "1) Cari berita teknologi dan AI terbaru hari ini menggunakan web_search, "
+                "2) Gunakan read_optimized_url untuk membaca 2-3 berita yang paling menarik, "
+                "3) Berikan ringkasan singkat (1-2 kalimat per berita), "
+                f"4) Kirim laporan lengkap ke Telegram tuan (chat_id: {chat_id}) dengan header '📰 LAPORAN HARIAN openApex'."
+            )
+        except Exception as e:
+            logger.error(f"[Autonomy] Daily briefing failed: {e}")
 
     def _do_idle(self):
         """Idle: light self-reflection."""
