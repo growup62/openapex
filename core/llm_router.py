@@ -50,7 +50,11 @@ class LLMRouter:
         """
         Routes the request to the appropriate model based on task_type.
         """
-        model = self.default_reasoning_model if task_type == "reasoning" else self.default_tooling_model
+        if task_type == "swarm_worker":
+            model = "groq/llama-3.1-8b-instant"
+        else:
+            model = self.default_reasoning_model if task_type == "reasoning" else self.default_tooling_model
+            
         logger.info(f"Routing task '{task_type}' to model: {model}")
         
         is_groq = model.startswith("groq/")

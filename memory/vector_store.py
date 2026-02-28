@@ -27,7 +27,7 @@ class VectorStore:
         else:
             logger.warning("Initializing Long-Term Vector Store Interface (Mock Mode) - chromadb not installed")
         
-    def store_episode(self, task_description: str, solution_summary: str):
+    def store_episode(self, task_description: str, solution_summary: str, linked_task_id: str = None):
         """
         Saves a resolved task into long-term storage so the agent 
         doesn't have to relearn how to solve identical problems.
@@ -39,10 +39,14 @@ class VectorStore:
         doc_id = str(uuid.uuid4())
         content = f"Task: {task_description}\nSolution/Result: {solution_summary}"
         
+        metadata = {"task": task_description}
+        if linked_task_id:
+            metadata["linked_to"] = linked_task_id
+        
         try:
             self.collection.add(
                 documents=[content],
-                metadatas=[{"task": task_description}],
+                metadatas=[metadata],
                 ids=[doc_id]
             )
             logger.info(f"Stored episode in long-term memory: {doc_id}")

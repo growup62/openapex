@@ -12,10 +12,11 @@ class AgentBase:
     Base class for any agent within the openApex swarm (e.g., Coder Agent, System Agent).
     Orchestrates memory management, tool execution, and thinking loops.
     """
-    def __init__(self, name: str, role_description: str, router: LLMRouter = None):
+    def __init__(self, name: str, role_description: str, router: LLMRouter = None, is_subagent: bool = False):
         self.name = name
         self.role_description = role_description
         self.router = router or LLMRouter()
+        self.is_subagent = is_subagent
         self.tools = []
         
         # Immediate context window
@@ -86,7 +87,7 @@ class AgentBase:
             self.add_message("user", user_input)
             logger.info(f"[{self.name}] Processing input: {user_input[:50]}...")
         
-        task_verbosity = "reasoning" if force_reasoning else "toolcalling"
+        task_verbosity = "swarm_worker" if self.is_subagent else ("reasoning" if force_reasoning else "toolcalling")
 
         # Ask the LLM for the next step (could be a message or a tool call request)
         response = self.router.generate_response(
@@ -129,3 +130,40 @@ class AgentBase:
              return {"status": "failed", "error": "Empty response from LLM"}
              
         return {"status": "unknown", "raw": response}
+
+    def run(self, objective: str, execute_tool_callback) -> str:
+        """
+        Runs the agent loop synchronously until a final success answer or failure is reached.
+        Used by the SwarmManager to let a sub-agent run its course.
+        """
+        logger.info(f"[{self.name}] Starting execution for objective: {objective}")
+        user_input = objective
+        max_iterations = 15
+        iterations = 0
+        
+        while iterations < max_iterations:
+            iterations += 1
+            response = self.run_cycle(user_input=user_input, force_reasoning=True)
+            user_input = None # Clear after first cycle
+            
+            if response["status"] == "success":
+                return response.get("response", "")
+            
+            elif response["status"] == "tool_requested":
+                for tool_call in response["tool_calls"]:
+                    func_details = tool_call.get("function", {})
+                    name = func_details.get("name")
+                    try:
+                        import json
+                        args = json.loads(func_details.get("arguments", "{}"))
+                        # Execute using the provided callback from the Brain
+                        observation = execute_tool_callback(name, args)
+                        self.add_message("tool", content=observation, tool_call_id=tool_call.get("id"), name=name)
+                    except Exception as e:
+                        logger.error(f"[{self.name}] Tool {name} execution failed: {e}")
+                        self.add_message("tool", content=f"Error executing tool: {e}", tool_call_id=tool_call.get("id"), name=name)
+            
+            elif response["status"] == "failed":
+                return f"Agent failed: {response.get('error', 'Unknown error')}"
+                
+        return "Agent stopped: Reached maximum iterations."

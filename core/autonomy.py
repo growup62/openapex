@@ -26,6 +26,7 @@ class AutonomyEngine:
     MODE_SOCIALIZING = "socializing"
     MODE_MONITORING = "monitoring"
     MODE_CREATING = "creating"
+    MODE_PREDICTIVE = "predictive"
 
     def __init__(self, brain_instance):
         self.brain = brain_instance
@@ -96,6 +97,8 @@ class AutonomyEngine:
                     self._do_monitoring()
                 elif action == self.MODE_CREATING:
                     self._do_creating()
+                elif action == self.MODE_PREDICTIVE:
+                    self._do_predictive()
                 else:
                     self._do_idle()
                 
@@ -121,9 +124,10 @@ class AutonomyEngine:
         # Weighted random selection
         weights = {
             self.MODE_LEARNING: 35,
-            self.MODE_SOCIALIZING: 25,
-            self.MODE_MONITORING: 20,
+            self.MODE_SOCIALIZING: 20,
+            self.MODE_MONITORING: 15,
             self.MODE_CREATING: 15,
+            self.MODE_PREDICTIVE: 20,
             self.MODE_IDLE: 5,
         }
         
@@ -215,6 +219,20 @@ class AutonomyEngine:
             self.brain.solve(task)
         except Exception as e:
             logger.error(f"[Autonomy] Creating failed: {e}")
+
+    def _do_predictive(self):
+        """Autonomous predictive: Analyze context to take unprompted proactive action."""
+        self.current_mode = self.MODE_PREDICTIVE
+        logger.info("[Autonomy] Executing predictive analysis...")
+        
+        try:
+            self.brain.solve(
+                "Lakukan analisis prediktif: Pindai memori, status sistem, atau kebutuhan Afriyono saat ini. "
+                "Temukan 1 tindakan yang berguna (misalnya merapikan file, membuat laporan, atau mendiagnosis sesuatu) "
+                "dan langsung eksekusi tindakan tersebut tanpa menunggu perintah."
+            )
+        except Exception as e:
+            logger.error(f"[Autonomy] Predictive analysis failed: {e}")
 
     def _do_idle(self):
         """Idle: light self-reflection."""

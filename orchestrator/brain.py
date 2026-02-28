@@ -61,6 +61,7 @@ from memory.context_window import ContextWindow
 from memory.vector_store import VectorStore
 from core.consciousness import Consciousness
 from core.autonomy import AutonomyEngine
+from core.swarm import SwarmManager, DELEGATE_TASK_SCHEMA
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +91,9 @@ class Brain:
         
         # Initialize consciousness (self-awareness)
         self.consciousness = Consciousness()
+        
+        # Initialize Swarm Manager
+        self.swarm_manager = SwarmManager(self)
         
         # Initialize default main agent — system prompt will be set after tools are registered
         self.main_agent = AgentBase(
@@ -130,6 +134,9 @@ class Brain:
         self.main_agent.register_tool(SELF_REFLECT_SCHEMA)
         self.main_agent.register_tool(RECALL_KNOWLEDGE_SCHEMA)
         self.main_agent.register_tool(STUDY_URL_SCHEMA)
+        
+        # Swarm tools
+        self.main_agent.register_tool(DELEGATE_TASK_SCHEMA)
         
         # PC Control tools
         self.main_agent.register_tool(SCREENSHOT_SCHEMA)
@@ -238,6 +245,16 @@ class Brain:
             if not url:
                 return json.dumps({"error": "Missing 'url' argument"})
             return json.dumps(self.self_learner.study_documentation(url))
+
+        # ===== Swarm Manager Tools =====
+        elif tool_name == "delegate_task":
+            role_name = arguments.get("role_name")
+            task_desc = arguments.get("task_description")
+            allowed = arguments.get("allowed_tools")
+            if not role_name or not task_desc:
+                return json.dumps({"error": "Missing 'role_name' or 'task_description'"})
+            # This spawns an agent and waits for it to return synchronously
+            return json.dumps({"sub_agent_result": self.swarm_manager.delegate_task(role_name, task_desc, allowed)})
 
         # ===== PC Control Tools =====
         elif tool_name == "take_screenshot":
