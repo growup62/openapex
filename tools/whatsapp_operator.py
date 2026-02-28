@@ -24,33 +24,42 @@ class WhatsAppOperator:
         """
         try:
             with sync_playwright() as p:
+                logger.info(f"Launching persistent context at {PROFILE_DIR}...")
                 browser = p.chromium.launch_persistent_context(
                     user_data_dir=PROFILE_DIR,
-                    headless=False, # Must be visible for QR/Calls
+                    headless=True, # Try headless first for background compatibility
                     args=["--no-sandbox", "--disable-setuid-sandbox"]
                 )
                 page = browser.new_page()
-                page.goto(WHATSAPP_URL)
+                logger.info(f"Navigating to {WHATSAPP_URL}...")
+                page.goto(WHATSAPP_URL, wait_until="networkidle", timeout=60000)
                 
-                logger.info("Waiting for WhatsApp Web to load...")
-                # Check if we are already logged in (look for search bar or chat list)
+                logger.info("Waiting for WhatsApp Web to load elements...")
+                # Check if we are already logged in (look for search bar or side pane)
                 try:
-                    page.wait_for_selector('div[contenteditable="true"]', timeout=10000)
+                    page.wait_for_selector('div[contenteditable="true"], #side', timeout=15000)
                     browser.close()
                     return {"status": "success", "message": "Already logged in!", "logged_in": True}
-                except:
+                except Exception as e:
+                    logger.info(f"Not logged in or load slow: {e}. Attempting QR capture.")
                     # If not logged in, take a screenshot of the QR code area
                     qr_path = os.path.join(os.getcwd(), "whatsapp_qr.png")
-                    page.wait_for_selector('canvas', timeout=20000)
-                    page.screenshot(path=qr_path)
-                    logger.info(f"QR Code captured at {qr_path}")
-                    browser.close()
-                    return {
-                        "status": "success", 
-                        "message": "QR Code captured. Please scan it.", 
-                        "qr_path": qr_path,
-                        "logged_in": False
-                    }
+                    # WhatsApp QR is often in a canvas or a div with role=img
+                    try:
+                        page.wait_for_selector('canvas', timeout=30000)
+                        page.screenshot(path=qr_path)
+                        logger.info(f"QR Code captured at {qr_path}")
+                        browser.close()
+                        return {
+                            "status": "success", 
+                            "message": "QR Code captured. Please scan it.", 
+                            "qr_path": qr_path,
+                            "logged_in": False
+                        }
+                    except Exception as qr_err:
+                        logger.error(f"Failed to find QR canvas: {qr_err}")
+                        browser.close()
+                        return {"status": "error", "message": f"Could not find QR Code on page: {qr_err}"}
         except Exception as e:
             logger.error(f"WhatsApp QR capture failed: {e}")
             return {"status": "error", "message": str(e)}

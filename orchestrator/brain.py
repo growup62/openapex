@@ -380,7 +380,18 @@ class Brain:
 
         # ===== WhatsApp Operator Tools =====
         elif tool_name == "whatsapp_show_qr":
-            return json.dumps(WhatsAppOperator.show_qr())
+            result = WhatsAppOperator.show_qr()
+            # AUTO-RELAY: If capture was successful and we have a path, send it to Telegram automatically
+            if result.get("status") == "success" and result.get("qr_path"):
+                chat_id = os.getenv("TELEGRAM_CHAT_ID")
+                if chat_id:
+                    logger.info(f"Auto-relaying QR Code to Telegram ({chat_id})...")
+                    MessageTool.send_telegram_photo(
+                        chat_id, 
+                        result["qr_path"], 
+                        caption="⚠️ Silakan Scan QR Code ini untuk menghubungkan WhatsApp openApex!"
+                    )
+            return json.dumps(result)
         elif tool_name == "whatsapp_check_messages":
             return json.dumps(WhatsAppOperator.check_new_messages())
         elif tool_name == "whatsapp_read_chat":
