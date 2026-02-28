@@ -1,0 +1,33 @@
+# Core dependencies for openApex
+python-dotenv==1.0.1
+requests==2.31.0
+pydantic==2.6.4
+colorama==0.4.6
+
+# Memory
+chromadb
+
+# Browser automation
+playwright
+
+# Web search
+duckduckgo-search
+
+# PC Control
+Pillow
+pyperclip
+psutil
+
+# Telegram Bot
+python-telegram-bot
+
+# Voice Engine
+edge-tts
+gTTS
+
+# OpenClaw Tools
+beautifulsoup4
+
+# Social Media
+tweepy
+praw
