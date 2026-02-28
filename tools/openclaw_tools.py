@@ -287,6 +287,34 @@ class MessageTool:
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
+    @staticmethod
+    def send_whatsapp(phone_no: str, message: str) -> Dict[str, Any]:
+        """
+        Send a WhatsApp message using pywhatkit web automation.
+        Requires user to be logged in to WhatsApp Web on Chrome.
+        """
+        if not phone_no:
+            # Fallback to env default
+            phone_no = os.getenv("WHATSAPP_TARGET_NUMBER")
+            if not phone_no:
+                return {"status": "error", "message": "Missing phone number and WHATSAPP_TARGET_NUMBER is not set in .env."}
+        
+        try:
+            import pywhatkit
+            logger.info(f"Opening WhatsApp Web to send message to {phone_no}...")
+            # We use sendwhatmsg_instantly which opens a new tab, types, sends, and optionally closes it
+            pywhatkit.sendwhatmsg_instantly(
+                phone_no=phone_no, 
+                message=message, 
+                wait_time=15, 
+                tab_close=True, 
+                close_time=5
+            )
+            return {"status": "success", "platform": "whatsapp", "message": f"Message sent automagically via web UI to {phone_no}"}
+        except Exception as e:
+            logger.error(f"WhatsApp sending error: {e}")
+            return {"status": "error", "message": str(e)}
+
 
 # ===== JSON Schemas =====
 

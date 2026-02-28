@@ -382,6 +382,8 @@ class Brain:
                     return json.dumps(MessageTool.send_telegram_photo(chat_id, file_path, caption=text))
                 else:
                     return json.dumps(MessageTool.send_telegram(chat_id, text))
+            elif platform == "whatsapp":
+                return json.dumps(MessageTool.send_whatsapp(chat_id, text))
             return json.dumps({"error": f"Unsupported platform: {platform}"})
 
         # ===== Social Media Tools =====
