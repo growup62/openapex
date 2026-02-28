@@ -57,6 +57,15 @@ from tools.social_media import (
     SOCIAL_READ_SCHEMA,
     SOCIAL_REPLY_SCHEMA
 )
+from tools.physical_control import (
+    PhysicalControlTool,
+    PHYSICAL_MOVE_MOUSE_SCHEMA,
+    PHYSICAL_CLICK_MOUSE_SCHEMA,
+    PHYSICAL_TYPE_KEYBOARD_SCHEMA,
+    PHYSICAL_PRESS_KEY_SCHEMA,
+    PHYSICAL_HOTKEY_SCHEMA,
+    PHYSICAL_OPEN_CHROME_SCHEMA
+)
 from memory.context_window import ContextWindow
 from memory.vector_store import VectorStore
 from core.consciousness import Consciousness
@@ -71,6 +80,48 @@ class Brain:
     and runs the cognitive ReAct loop: Thinking -> Acting -> Observing.
     Now with autonomous self-learning and PC control.
     """
+    
+    TOOL_CATALOG = {
+        "system_run_command": SYSTEM_TOOL_SCHEMA,
+        "system_read_file": SYSTEM_READ_FILE_SCHEMA,
+        "system_write_file": SYSTEM_WRITE_FILE_SCHEMA,
+        "system_list_directory": SYSTEM_LIST_DIR_SCHEMA,
+        "system_patch_file": SYSTEM_PATCH_FILE_SCHEMA,
+        "browser_act": BROWSER_TOOL_SCHEMA,
+        "web_search": WEB_SEARCH_SCHEMA,
+        "run_python": PYTHON_REPL_SCHEMA,
+        "self_reflect": SELF_REFLECT_SCHEMA,
+        "recall_knowledge": RECALL_KNOWLEDGE_SCHEMA,
+        "study_url": STUDY_URL_SCHEMA,
+        "delegate_task": DELEGATE_TASK_SCHEMA,
+        "take_screenshot": SCREENSHOT_SCHEMA,
+        "get_clipboard": GET_CLIPBOARD_SCHEMA,
+        "set_clipboard": SET_CLIPBOARD_SCHEMA,
+        "list_processes": LIST_PROCESSES_SCHEMA,
+        "kill_process": KILL_PROCESS_SCHEMA,
+        "get_disk_usage": DISK_USAGE_SCHEMA,
+        "open_application": OPEN_APP_SCHEMA,
+        "get_system_stats": SYSTEM_STATS_SCHEMA,
+        "text_to_speech": TEXT_TO_SPEECH_SCHEMA,
+        "speech_to_text": SPEECH_TO_TEXT_SCHEMA,
+        "list_tts_voices": LIST_TTS_VOICES_SCHEMA,
+        "web_fetch": WEB_FETCH_SCHEMA,
+        "analyze_image": IMAGE_ANALYSIS_SCHEMA,
+        "cron_add": CRON_ADD_SCHEMA,
+        "cron_list": CRON_LIST_SCHEMA,
+        "cron_remove": CRON_REMOVE_SCHEMA,
+        "send_message": SEND_MESSAGE_SCHEMA,
+        "social_post": SOCIAL_POST_SCHEMA,
+        "social_read": SOCIAL_READ_SCHEMA,
+        "social_reply": SOCIAL_REPLY_SCHEMA,
+        "physical_move_mouse": PHYSICAL_MOVE_MOUSE_SCHEMA,
+        "physical_click_mouse": PHYSICAL_CLICK_MOUSE_SCHEMA,
+        "physical_type_keyboard": PHYSICAL_TYPE_KEYBOARD_SCHEMA,
+        "physical_press_key": PHYSICAL_PRESS_KEY_SCHEMA,
+        "physical_hotkey": PHYSICAL_HOTKEY_SCHEMA,
+        "physical_open_chrome": PHYSICAL_OPEN_CHROME_SCHEMA
+    }
+    
     def __init__(self):
         self.router = LLMRouter()
         self.state_manager = StateManager()
@@ -115,56 +166,26 @@ class Brain:
         self.main_agent.conversation_history[0] = {"role": "system", "content": conscious_prompt}
         
     def _register_default_tools(self):
-        """Registers the schemas of tools the agent can use."""
-        # System tools
-        self.main_agent.register_tool(SYSTEM_TOOL_SCHEMA)
-        self.main_agent.register_tool(SYSTEM_READ_FILE_SCHEMA)
-        self.main_agent.register_tool(SYSTEM_WRITE_FILE_SCHEMA)
-        self.main_agent.register_tool(SYSTEM_LIST_DIR_SCHEMA)
-        self.main_agent.register_tool(SYSTEM_PATCH_FILE_SCHEMA)
+        """
+        Registers ONLY the core survival tools to the Main Agent.
+        This saves massive amounts of context tokens.
+        All other tools are stored in TOOL_CATALOG and accessed via swarm delegation.
+        """
+        core_tools = [
+            "system_run_command",
+            "system_read_file",
+            "system_list_directory",
+            "system_patch_file",
+            "web_search",
+            "self_reflect",
+            "recall_knowledge",
+            "delegate_task",
+            "run_python"
+        ]
         
-        # Browser & Web
-        self.main_agent.register_tool(BROWSER_TOOL_SCHEMA)
-        self.main_agent.register_tool(WEB_SEARCH_SCHEMA)
-        
-        # Code execution
-        self.main_agent.register_tool(PYTHON_REPL_SCHEMA)
-        
-        # Self-learning tools
-        self.main_agent.register_tool(SELF_REFLECT_SCHEMA)
-        self.main_agent.register_tool(RECALL_KNOWLEDGE_SCHEMA)
-        self.main_agent.register_tool(STUDY_URL_SCHEMA)
-        
-        # Swarm tools
-        self.main_agent.register_tool(DELEGATE_TASK_SCHEMA)
-        
-        # PC Control tools
-        self.main_agent.register_tool(SCREENSHOT_SCHEMA)
-        self.main_agent.register_tool(GET_CLIPBOARD_SCHEMA)
-        self.main_agent.register_tool(SET_CLIPBOARD_SCHEMA)
-        self.main_agent.register_tool(LIST_PROCESSES_SCHEMA)
-        self.main_agent.register_tool(KILL_PROCESS_SCHEMA)
-        self.main_agent.register_tool(DISK_USAGE_SCHEMA)
-        self.main_agent.register_tool(OPEN_APP_SCHEMA)
-        self.main_agent.register_tool(SYSTEM_STATS_SCHEMA)
-        
-        # Voice tools
-        self.main_agent.register_tool(TEXT_TO_SPEECH_SCHEMA)
-        self.main_agent.register_tool(SPEECH_TO_TEXT_SCHEMA)
-        self.main_agent.register_tool(LIST_TTS_VOICES_SCHEMA)
-        
-        # OpenClaw-inspired tools
-        self.main_agent.register_tool(WEB_FETCH_SCHEMA)
-        self.main_agent.register_tool(IMAGE_ANALYSIS_SCHEMA)
-        self.main_agent.register_tool(CRON_ADD_SCHEMA)
-        self.main_agent.register_tool(CRON_LIST_SCHEMA)
-        self.main_agent.register_tool(CRON_REMOVE_SCHEMA)
-        self.main_agent.register_tool(SEND_MESSAGE_SCHEMA)
-        
-        # Social media tools
-        self.main_agent.register_tool(SOCIAL_POST_SCHEMA)
-        self.main_agent.register_tool(SOCIAL_READ_SCHEMA)
-        self.main_agent.register_tool(SOCIAL_REPLY_SCHEMA)
+        for name in core_tools:
+            if name in self.TOOL_CATALOG:
+                self.main_agent.register_tool(self.TOOL_CATALOG[name])
         
     def _execute_tool(self, tool_name: str, arguments: Dict[str, Any]) -> str:
         """Executes a requested tool locally based on the LLM's demand."""

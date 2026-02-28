@@ -89,6 +89,13 @@ class AgentBase:
         
         task_verbosity = "swarm_worker" if self.is_subagent else ("reasoning" if force_reasoning else "toolcalling")
 
+        # --- CONTEXT PRUNING (TOKEN OPTIMIZATION) ---
+        # Keep the system prompt (index 0) and the last ~10 messages to prevent token bloat
+        if len(self.conversation_history) > 12:
+            # Always keep index 0 (System Prompt)
+            self.conversation_history = [self.conversation_history[0]] + self.conversation_history[-10:]
+            logger.debug(f"[{self.name}] Pruned conversation history to save tokens.")
+
         # Ask the LLM for the next step (could be a message or a tool call request)
         response = self.router.generate_response(
             messages=self.conversation_history,

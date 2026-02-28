@@ -43,15 +43,14 @@ class SwarmManager:
         sub_agent = AgentBase(name=agent_id, role_description=role_prompt, router=self.brain.router, is_subagent=True)
         self.active_agents[agent_id] = sub_agent
         
-        # Transfer specified tools from the main agent to the sub agent
+        # Transfer specified tools from the central catalog to the sub agent
         if allowed_tools is None:
-            # If no specific tools mentioned, give them access to safe retrieval/web tools
+            # If no specific tools mentioned, give them access to safe core tools
             allowed_tools = ["web_search", "web_fetch", "run_python", "analyze_image", "system_read_file"]
             
-        for tool in self.brain.main_agent.tools:
-            tool_fn_name = tool["function"]["name"]
-            if tool_fn_name in allowed_tools:
-                sub_agent.register_tool(tool)
+        for tool_name in allowed_tools:
+            if tool_name in self.brain.TOOL_CATALOG:
+                sub_agent.register_tool(self.brain.TOOL_CATALOG[tool_name])
         
         # Execute the task
         logger.info(f"[SwarmManager] Executing task on {agent_id}...")
